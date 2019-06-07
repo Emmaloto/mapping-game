@@ -1,0 +1,203 @@
+<!-- IT'S A SMALL WORLD Project - CS286 -->
+
+<!-- Miguel Portillo -->
+<!-- Emmanuel Oluloto-->
+
+<DOCTYPE html>
+<html>
+
+  <head>
+    <title> It's a Small World </title>
+
+    <!-- CSS (import) -->
+    <link rel="icon" href="icons/gps_navigation_icon.png">
+    <link rel="stylesheet" href="mapStyling.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Oswald|Anton|Boogaloo|Ubuntu">  
+
+    <!-- Google Maps API + Richmarker import -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAGPJCC0UuL1quW1tz93wX_bvON2Z7EmAA"></script>
+    <script src="js_files/richmarker.js"></script>
+
+    <!-- Scripts coutaining resources -->
+    <script src="js_files/countryShapes.js"></script>
+    <script src="js_files/countryInfo.js"></script>
+    <script src="js_files/gameArrays.js"></script>    
+
+    
+    <!-- All the action happens here -->
+    <script src="js_files/mapGameScript.js"></script>    
+
+    
+
+  </head>
+
+  <body>
+    <!-- While page is loading -->
+    <div id="loading">
+      <img id="load-image" src="icons/loading.gif" alt="Loading page..." />
+    </div>  
+
+
+    <div class="headers" onclick="">
+      <h1>Emmanuel Oluloto & Miguel Portillo</h1>
+      <h2>CS286 Project</h2> 
+
+      <h1 class="Oswald"> It's a Small World </h1>
+    </div>
+
+ <!-- Game mode options-->
+ <div>
+  <select id="chooseGame" onchange="setMode(this.value)" class="Oswald">
+     <option value="capitals" selected="selected"><b>Match Capitals</b></option>
+     <option value="flags"><b>Match Flags</b></option>
+     <option value="photos"><b>Match Photos</b></option>
+   </select>
+ </div>
+
+   <br>
+   <br>
+   <!-- Button to hide/show game controls (they take up a large portion of the screen) -->   
+  <div> <br> <button id="optBtn" onclick="  if (this.innerHTML == 'Show Game Options') {
+                                    this.innerHTML = 'Hide Game Options'; 
+                                    document.getElementById('options').style.display = 'block';
+                                    this.style.backgroundColor = '#409195';
+                                } else { 
+                                    this.innerHTML = 'Show Game Options'; 
+                                    document.getElementById('options').style.display = 'none';
+                                    this.style.backgroundColor = '#406359';
+                                }
+                                  ">Show Game Options</button> </div>
+
+
+ <!-- Other game options-->
+ <div style="margin: auto" class="Oswald" id="options">
+
+   <!-- Game control to turn polys on/off -->
+   <div>
+    Game Mode (Toggle Country Outlines):
+    <input type="radio" name="mode" value="easy" onclick="showPolys(true)" checked>
+    <label for="easy">Easy</label>
+  
+    <input type="radio" name="mode" value="hard" onclick="showPolys(false)">
+    <label for="hard">Hard</label>
+  </div>
+
+  <br>
+   <!-- Buttons to solve/restart game -->
+  <button onclick="solveAll();">Solve All Markers</button>
+  <button onclick="restartGame();">Restart Game</button>
+
+  <br><br>
+
+   <!-- Options for info-richmarker and marker map elements-->
+  <label class="container">Show Map Information Marker
+    <input type="checkbox" checked="checked" onclick="showMapInfo(this.checked)">
+    <span class="checkmark"></span>
+  </label>
+
+  <label class="container">Keep Information Marker Static
+    <input type="checkbox" onclick="fixInfo(this.checked)">
+    <span class="checkmark"></span>
+  </label>
+
+  <label class="container">Randomize Initial Locations
+    <input type="checkbox" checked="checked" onclick="randomSpawn(this.checked)">
+    <span class="checkmark"></span>
+  </label>
+</div>
+
+
+
+    <!-- This needs to move-->
+    <div id="messageBox">
+      Let's begin! Remember to look at this window for information.
+    </div>
+
+    <div id="capital_panel">
+      <div id="map1" class="maps"></div>
+
+      <h2 style="color:green" id="capital_map"> Cite the Capitals </h2>
+      <p> In this geo-game, your goal is to place the capital markers in their appropriate countries. 
+        <ul>
+            <li> <b style="color:green">Click marker</b> for city information </li>            
+            <li> <b style="color:green">Click and drag marker</b> to move marker </li>
+            <li> <b style="color:green">Right click marker</b> to auto place marker at correct location </b> </li>
+            <li> <b> Note: Marker may not be placed exactly in country, might need to zoom in and fix or right-click again.</b></li>            
+            <li> <b style="color:green">Toggle polys on/off by selecting easy/hard mode</b> </li>          
+            <li> <b style="color:green">Click on solved country</b> to see information about country </li>                           
+        </ul>
+
+      </p>      
+    </div>
+
+
+    <div id="flag_panel" >
+      <div id="map2" class="maps"></div>
+
+      <h2 style="color:tomato" id=""> Fix the Flags </h2>
+      <p> In this geo-game, your goal is to place flags in the countries they belong to. 
+        <ul>       
+            <li> <b style="color:tomato">Click and drag marker</b> to move marker </li>
+            <li> <b style="color:tomato">Right click marker</b> to auto place marker at correct location </li>            
+            <li> <b> Note: Marker may not be placed exactly in country, might need to zoom in and fix or right-click again.</b></li>            
+            <li> <b style="color:tomato">Toggle polys on/off by selecting easy/hard mode</b>  </li>         
+            <li> <b style="color:tomato">Click on solved country</b> to see information about country </li>                                  
+        </ul>
+
+      </p>
+
+      <p> All flag icons are from <a href="https://icon-icons.com/"> icon-icons.com</a>.</p>      
+    </div>
+
+
+    
+    <br>
+
+    <div id="photo_panel">
+      <div id="map3" class="maps"></div>
+
+      <h2 style="color:indigo" id=""> Place the Photos </h2>
+      <p> Move the draggable photos of popular global tourist locations to the country they are located in. </p>    
+        <ul>       
+            <li> <b style="color:indigo">Click and drag marker</b> to move marker </li>
+            <li> <b style="color:indigo">Right click marker</b> to auto place marker at correct location  </li>            
+            <li> <b> Note: Marker may not be placed exactly in country, might need to zoom in and fix or right-click again.</b></li>            
+            <li> <b style="color:indigo">Toggle polys on/off by selecting easy/hard mode</b>  </li>         
+            <li> <b style="color:indigo">Click on solved country</b> to see information about country </li>                                  
+        </ul>         
+    </div>
+
+
+    
+    <!-- Hide/Show info at bottom of page-->
+    <div><button onclick="  if (this.innerHTML == 'Show Info Panel') {
+                                    this.innerHTML = 'Hide Info Panel'; 
+                                    document.getElementById('sources_box').style.display = 'block';
+                                } else { 
+                                    this.innerHTML = 'Show Info Panel'; 
+                                    document.getElementById('sources_box').style.display = 'none';
+                                }
+                                  " >Show Info Panel</button>  <br> <br> </div>
+    <div id="sources_box"> 
+      <h2> Web Application Information </h2>
+      <p> To get the array of coordinates for the countries, we had to parse an SQL/CSV file to obtain them with R. 
+        The process can be seen <a href="parsing_for_coords.html">here</a>. </p>
+      <p> To create the marker animation, we had to calculate the distances to move the marker each animation cycle 
+          using a helpful snippet from this 
+          <a href="https://stackoverflow.com/questions/10904476/js-google-maps-api-v3-animate-marker-between-coordinates">question</a>. </p>
+      <p> All flag icons are from <a href="https://icon-icons.com/">icon-icons.com</a>.</p>
+      <p> Photos of tourist locations are from <a href="https://travel.usnews.com/gallery/the-worlds-50-best-tourist-attractions?onepage">Getty Images</a>. </p>
+      <p> </p>
+      <p> </p>
+    </div>
+
+
+
+  </body>
+
+
+</html>
+
+
+
+

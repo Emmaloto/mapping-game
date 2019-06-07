@@ -1,0 +1,409 @@
+---
+title: "parsing_for_coords"
+author: "Emmanuel Oluloto"
+date: "April 3, 2019"
+output: html_document
+---
+
+```{r libs, include=FALSE}
+library(tidyverse)
+library(xml2)
+library(dplyr)
+```
+
+## SQL File to Javascript/JSON
+
+We found a great sql file with all the countries [here](https://stackoverflow.com/questions/21302002/google-map-as-a-vector-map). However we would like to have an object storing all country polygon paths containing all the arrays in JavaScript form. The objective is to create and edit polygons as we need them, as well as obtain values from them. We cannot use KML, as we cannot really alter individual polygons drawn with a KML layer.    
+
+Thus we will be using the file to create the JS code we need using string parsing functions in R. We will use the unique country abbreviations as keys in our country object.
+
+### SQL to CSV
+To play with files in R, we need them in a standard R format, like a CSV. To convert the SQL to a CSV, we used [this site](https://www.rebasedata.com/convert-mysql-to-csv-online).    
+
+[This site](https://www.eversql.com/sql-syntax-check-validator/) is also useful for checking SQL code validity. 
+
+
+### CSV to JS
+We now have the CSV file which we can import and alter.
+
+#### Other Table Information
+To get access to the capitals and other data, we will be importing another CSV and fusing it to the *countryData* dataframe.
+
+
+```{r}
+countryData = read_csv("datasets/gmaps_countries.csv")
+colnames(countryData)
+
+extraCountryData = read_csv("datasets/country-capitals.csv")
+colnames(extraCountryData)
+
+
+allCountryData <- merge(countryData, extraCountryData, by.x = "iso", by.y = "CountryCode")
+#countryData = allCountryData
+
+countrySample <- head(allCountryData, 12)
+#countrySample
+```
+The *description* field contains the coordinates we need. There is a LOT of text in the geometry fields of each row, so we will start by only looking at the first 12 rows of our dataset.
+
+
+#### Geometry Field Breakdown
+The geometry field is written in KML. Thus, geo-elements are denoted and separated by opening and closing tags.
+
++ A simple polygon is usually denoted by *<Polygon><outerBoundaryIs><LinearRing><coordinates>...</coordinates></LinearRing></outerBoundaryIs></Polygon>*  
++ A multi-polygon OR polygon with holes is denoted by *<MultiGeometry><Polygon>...*. This could also be just one polygon. 
+
+We need to test for different cases and plan accordingly.
+
+### Split Strings 
+Let's test R's string functions using just one of our 12 samples. 
+We will split the string in the geometry field to get just the coordinates as a string.
+```{r, poly_case}
+countrySample[1,]
+
+#Geo-field
+countrySample[1,7]
+countrySample$geometry[1]
+
+# Turn field to string -> parce w xml lib -> get all coordinate sub-nodes -> Get node content
+polycoord <- countrySample$geometry[1] %>% toString() %>% read_xml() %>% xml_find_all(".//coordinates") %>% xml_text()
+#polycoord
+str_sub(polycoord, 1, 20)
+
+# Get individual lat-lng values
+coord_list = strsplit(polycoord, " ")
+
+# But wait! In KML, Lat-Lng is switched! So we have to split and recombine!
+lats_lngs = strsplit(coord_list[[1]], ",")
+correct = lapply(lats_lngs,  function(x){paste(x[2], x[1], sep = ",")})
+
+coord_list = correct
+```
+
+We have the individual latitudes and longitudes! We can then print out our JS code:
+
+```{r poly_Case2}
+# Generate JS string
+js_code = paste("{ '", countrySample$iso[1], "': [ ")
+co = ""
+
+# for(i in coord_list){ print(i)}
+
+# Concatenate into mega-string
+for(i in coord_list){
+  #for(j in i){
+    co = paste(co, " new google.maps.LatLng(", i, "),\n")
+  #}
+  # Remove last ", " from file
+  
+}
+co = substr(co, 1, nchar(co)-2)
+
+
+js_code = paste("var testCountry = ",js_code, co, " ] };")
+#js_code
+str_sub(js_code, 1, 20)
+
+# Making sure last digits are correct
+str_sub(js_code, -12, -1)
+```
+
+### Exporting to Text
+
+The **cat** function is reall helpful for helping us export our generated code to a file.
+```{r}
+# Does not work with formatting text with newlines-_-
+#write.table(js_code, "mylatlng.js", sep="\t")
+
+
+
+cat(js_code, file = "js_files/mylatlng.js")
+```
+
+Our code prints out successfully!
+But what if our polygon uses more than 1 path?
+
+
+### Parsing Multigons
+If there is more than 1 *coordinates* opening/closing pair, then the **xml_find_all** function should return more than 1 list. Let's test with the 9th country in the list, *Argentina*.
+```{r multi_poly}
+polycoords <- countrySample[9,7] %>% toString() %>% read_xml() %>% xml_find_all(".//coordinates") %>% xml_text()
+length(polycoords)
+
+coord_lists = strsplit(polycoords, " ") 
+
+# Re-flip lat-long
+# There might be a cleaner way to do this with nested lapply
+correct = list()
+for(co_list in coord_lists){
+  lats_lngs = strsplit(co_list, ",")
+  corr_list = unlist(lapply(lats_lngs,  function(x){paste(x[2], x[1], sep = ",")})) # THIS IS A VECTOR, NOT A LIST
+  #print(corr_list)
+  #correct <- append(correct, list(corr_list))
+  correct[[length(correct) + 1]] = corr_list
+}
+
+
+
+coord_lists = correct
+str(coord_lists)
+#str(correct)
+```
+
+```{r TESTING, eval=FALSE, include=FALSE}
+polycoords <- countrySample[9,7] %>% toString() %>% read_xml() %>% xml_find_all(".//coordinates") %>% xml_text()
+length(polycoords)
+
+coord_lists = strsplit(polycoords, " ") 
+
+# Re-flip lat-long
+# There might be a cleaner way to do this with nested lapply
+correct = list()
+#for(co_list in coord_lists){
+co_list = coord_lists[[1]]
+  lats_lngs = strsplit(co_list, ",")
+  corr_list = lapply(lats_lngs,  function(x){paste(x[2], x[1], sep = ",")})
+  #print(corr_list)
+  #correct <- append(correct, list(corr_list))
+  #correct[[length(correct) + 1]] = corr_list
+#}
+
+#coord_lists = correct
+str(coord_lists)
+str(correct)
+```
+
+Argentina has a lot of tiny peices! Let's see how we can account for all of them.
+Using a *for loop* to apply our concatenation operation to each list of strings should be helpful. We will store different polygons in different arrays, all of which will be within an array.
+
+```{r multi_poly2}
+# Generate JS string
+more_code = paste("{ '", countrySample[9,1], "': [ ")
+co = ""
+
+
+  for(list in coord_lists){
+    # Beginning of path array
+    co = paste(co, "[")
+
+    for(j in list){
+      co = paste(co, " new google.maps.LatLng(", j, "),\n")
+    }
+    
+    # Remove last ", " from file
+    co = substr(co, 1, nchar(co)-2)
+    # Annoying error
+    co = paste(co, "],\n")
+
+  }
+co = substr(co, 1, nchar(co)-2)
+
+more_code = paste("var longTest = ", more_code, co, " ] };")
+#more_code
+str_sub(more_code, 1, 50)
+
+# Making sure last digits are correct
+str_sub(more_code, -12, -1)
+
+cat(more_code, file = "js_files/morelangslngs.js")
+```
+
+### Applying Function to CSV Rows
+
+Now that we know our function is working, we can modify it to go through the rows in our dataset. We ill be storing the generated code of each file in a corresponding column position as well as writing the code to a js file.     
+
+
+We'll be doing this with just the 12 countries in the sample. After seeing how well the code works in our actual web application, we can then run the code for all of them! We will also have to add some more info to the table denoting capital information and anything else we would like to add.
+
+```{r code_function}
+
+# Remove last characters
+removeLastChars <- function(string, count){
+  return(substr(string, 1, nchar(string)-count))
+}
+
+# Flip long-lat order of list of lists
+flipCoords <- function(listOfCoordLists){
+  correct = list()
+  for(list in listOfCoordLists){
+    lats_lngs = strsplit(list, ",")
+    corr_list = unlist( lapply(lats_lngs,  function(x){paste(x[2], x[1], sep = ",")}) )
+    correct[[length(correct) + 1]] = corr_list
+  }
+  
+  return(correct)
+}
+
+parse_to_JS <- function(dataset,colID=7,createColumn=TRUE) {
+  all_code = "var countryPaths = \n{"
+  dataset$js_code = NA
+  # Run through all rows
+  for (row in 1:nrow(dataset)) {
+    kml = dataset[row, colID]
+    
+    # Beginning of file
+    more_code = paste(" '", toString(dataset$iso[row]), "': [ ", sep="")
+    #toString(dataset[row, 3])
+    co = ""
+
+    # Split string into individual pairs
+    polycoords <- kml %>% toString() %>% read_xml() %>% xml_find_all(".//coordinates") %>% xml_text()
+    coord_lists = strsplit(polycoords, " ")
+    coord_lists = flipCoords(coord_lists)
+    
+    for(list in coord_lists){
+      # Beginning of path array
+      co = paste(co, "[")
+      # Add newlines only at certain intervals
+      counter = 1
+      for(j in list){
+        
+        co = paste(co, " new google.maps.LatLng(", j, "),")
+      if(counter%%3 ==0) co = paste(co, "\n") else co = paste(co, " ")
+        #print(counter%%3 ==0)
+        #print(str_sub(co, -8, -1))
+        counter = counter + 1
+        
+      }
+    
+      # Remove last ", " from inner array for 1 path for a country
+      co = removeLastChars(co, 3)
+      # End of path array
+      co = paste(co, "],\n")
+
+    }
+    # Remove last ", " from outer array for all paths for 1 country
+    co = removeLastChars(co, 2)
+    # Add code for entire row to file
+    more_code = paste(more_code, co, " ] ,\n")
+    # Store code for each country back in table
+    if(createColumn) dataset$js_code[row] = more_code
+    all_code = paste(all_code, more_code)
+  } # end of iterating through arrays
+  
+  # Remove last ", " from overall JS object
+  all_code = removeLastChars(all_code, 2)
+  all_code = paste( all_code, "  };")
+  return(all_code)
+} # function end
+
+
+
+# Test function
+test = parse_to_JS(countrySample)
+str_sub(test, -12, -1)
+cat(test, file = "js_files/shapesTest.js")
+```
+
+Thsi snippet generates code for ALL the countries! This code will take a while to run.
+```{r code_generation, eval=FALSE}
+# This will take a WHILE, so do not auto-evaluate
+shapes = parse_to_JS(countryData)
+cat(shapes, file = "js_files/countryShapes.js")
+```
+
+
+
+## Generating Code for Markers and Arrays
+
+We still need to generate code for the other properties of world countries, such as capital cities, coordinates, and available countries. This could also be a JSON file.
+
+We will also need the list of country abbreviations which are available in our code.
+```{r other_code}
+# Test with 1 entry
+countryInfo = ""
+countryInfo = paste("{ '", countrySample$iso[11], "': { ", sep = "")
+
+countryInfo = paste(countryInfo, "\n  countryName: '", countrySample$CountryName[11], "', \n")
+countryInfo = paste(countryInfo, " landArea: ", countrySample$landarea[11], ", \n")
+countryInfo = paste(countryInfo, " capital: '", countrySample$CapitalName[11], "', \n")
+countryInfo = paste(countryInfo, " capital_location:  new google.maps.LatLng(", countrySample$CapitalLatitude[11], ",", countrySample$CapitalLongitude[11], "), \n")
+countryInfo = paste(countryInfo, " continent: '", countrySample$ContinentName[11], "', \n")
+countryInfo = paste(countryInfo, " color: '", countrySample$color[11], "' \n")
+
+countryInfo = paste(countryInfo, " }  } ", sep = "")
+
+cat(countryInfo, file = "js_files/AU_Info.js")
+```
+
+
+Now let's create the code for a dataframe!
+```{r generate_country_info}
+
+parse_code_to_JS <- function(dataset,createColumn=TRUE) {
+  # List of country IDs in our dataset
+  #countryIDs = apply(dataset$iso, 2, paste, collapse=", ")
+  
+  countriesInfo = "var countryInfo = \n{  \n"
+  for (row in 1:nrow(dataset)) {
+    # Start
+    countryObject = paste("'", dataset$iso[row], "': { \n", sep = "")
+    countryObject = paste(countryObject, "  countryName: ", shQuote(dataset$CountryName[row]), ", \n", sep = "")
+    countryObject = paste(countryObject, "  landArea: ", dataset$landarea[row], ", \n", sep = "")
+    countryObject = paste(countryObject, "  capital: ", shQuote(dataset$CapitalName[row]), ", \n", sep = "")
+    countryObject = paste(countryObject, "  capital_location:  new google.maps.LatLng(", 
+                        dataset$CapitalLatitude[row], ",", 
+                        dataset$CapitalLongitude[row], "), \n", sep = "")
+    countryObject = paste(countryObject, "  continent: ", shQuote(dataset$ContinentName[row]), ", \n", sep = "")
+    countryObject = paste(countryObject, "  color: ", shQuote(dataset$color[row]), " \n", sep = "")
+    # End
+    countryObject = paste(countryObject, "},\n", sep = "")
+    
+    countriesInfo = paste(countriesInfo, countryObject)
+    
+  }
+  countriesInfo = removeLastChars(countriesInfo, 2)
+  countriesInfo = paste(countriesInfo, "\n} ", sep = "")
+  
+  #print(countryIDs)
+  return(countriesInfo)
+}
+
+test = parse_code_to_JS(allCountryData)
+cat(test, file = "js_files/countryInfo.js")
+```
+
+
+```{r}
+#countryIDs = apply(countrySample$iso, 2, paste, collapse=", ")
+countryData = countrySample
+#countryData = allCountryData
+
+abbrArray = "var validPolys = [ "
+for(r in 1:nrow(countryData)){
+  if(!is.na(countryData$geometry[r]) )
+    abbrArray = paste(abbrArray, shQuote(countryData$iso[r]), ",", sep="")
+  if(r %% 20 == 0)
+    abbrArray = paste(abbrArray, "\n")
+  if(r == nrow(countryData))
+    abbrArray = removeLastChars(abbrArray,1)
+}
+
+abbrArray = paste(abbrArray, " ];\n\n")
+#cat(abbrArray, file = "js_files/arrays.js")
+
+#abbrArray = ""
+abbrArray = paste(abbrArray, "var validCapitals = [ ")
+for(r in 1:nrow(countryData)){
+  #print(is.numeric(countryData$CapitalLatitude[r]) & is.numeric(countryData$CapitalLongitude[r]))
+  if( !is.na(countryData$CapitalLatitude[r]) & !is.na(countryData$CapitalLongitude[r]) )
+    abbrArray = paste(abbrArray, shQuote(countryData$iso[r]), ",", sep="")
+  if(r %% 20 == 0)
+    abbrArray = paste(abbrArray, "\n")
+  if(r == nrow(countryData))
+    abbrArray = removeLastChars(abbrArray, 1)
+}
+
+
+abbrArray = paste(abbrArray, " ];\n")
+cat(abbrArray, file = "js_files/arrays.js")
+```
+
+
+#### Save Final DB
+
+To inspect the database, we can save the final dataset to a CSV.
+```{r}
+write.csv(allCountryData, file = "allCountryData.csv")
+```
+
